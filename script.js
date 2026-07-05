@@ -19,6 +19,8 @@ import {
   orderBy,
   onSnapshot,
   serverTimestamp,
+  deleteDoc,
+  doc,
 } from 'https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore.js';
 
 const firebaseConfig = {
@@ -76,6 +78,10 @@ function renderGames(list) {
   }
 
   list.forEach((game) => {
+    const deleteButton = state.isAdmin
+      ? `<button class="secondary-btn delete-btn" data-id="${game.id}">Delete</button>`
+      : '';
+
     const card = document.createElement('article');
     card.className = 'game-card';
     card.innerHTML = `
@@ -86,11 +92,24 @@ function renderGames(list) {
         <div class="card-actions">
           <a class="primary-btn" href="${game.download}" target="_blank" rel="noreferrer">Download</a>
           <a class="secondary-btn" href="${game.steam}" target="_blank" rel="noreferrer">View on Steam</a>
+          ${deleteButton}
         </div>
       </div>
     `;
     selectors.gameList.appendChild(card);
   });
+
+  if (state.isAdmin) {
+    selectors.gameList.querySelectorAll('.delete-btn').forEach((button) => {
+      button.addEventListener('click', async () => {
+        const gameId = button.dataset.id;
+        if (!gameId) return;
+        if (!confirm('Delete this game?')) return;
+        await deleteDoc(doc(db, 'games', gameId));
+        loadGames();
+      });
+    });
+  }
 }
 
 function renderChat(messages) {
@@ -261,6 +280,7 @@ onAuthStateChanged(auth, (user) => {
     state.isAdmin = false;
   }
   setUserLabel();
+  renderGames(state.games);
 });
 
 loadGames();
