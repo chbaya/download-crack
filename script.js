@@ -20,6 +20,7 @@ import {
   onSnapshot,
   serverTimestamp,
   deleteDoc,
+  updateDoc,
   doc,
 } from 'https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore.js';
 
@@ -62,6 +63,7 @@ const selectors = {
   googleLoginBtn: document.getElementById('google-login'),
   openAddGame: document.getElementById('open-add-game'),
   addModal: document.getElementById('add-modal'),
+  addModalTitle: document.getElementById('add-modal-title'),
   closeAdd: document.getElementById('close-add'),
   addGameForm: document.getElementById('add-game-form'),
   chatBox: document.getElementById('chat-box'),
@@ -81,6 +83,9 @@ function renderGames(list) {
     const deleteButton = state.isAdmin
       ? `<button class="secondary-btn delete-btn" data-id="${game.id}">Delete</button>`
       : '';
+    const editButton = state.isAdmin
+      ? `<button class="secondary-btn edit-btn" data-id="${game.id}">Edit</button>`
+      : '';
 
     const card = document.createElement('article');
     card.className = 'game-card';
@@ -92,6 +97,7 @@ function renderGames(list) {
         <div class="card-actions">
           <a class="primary-btn" href="${game.download}" target="_blank" rel="noreferrer">Download</a>
           <a class="secondary-btn" href="${game.steam}" target="_blank" rel="noreferrer">View on Steam</a>
+          ${editButton}
           ${deleteButton}
         </div>
       </div>
@@ -107,6 +113,25 @@ function renderGames(list) {
         if (!confirm('Delete this game?')) return;
         await deleteDoc(doc(db, 'games', gameId));
         loadGames();
+      });
+    });
+    // Edit button handlers
+    selectors.gameList.querySelectorAll('.edit-btn').forEach((button) => {
+      button.addEventListener('click', () => {
+        const gameId = button.dataset.id;
+        if (!gameId) return;
+        const game = state.games.find((g) => g.id === gameId);
+        if (!game) return;
+        // populate form
+        document.getElementById('game-title').value = game.title || '';
+        document.getElementById('game-download').value = game.download || '';
+        document.getElementById('game-steam').value = game.steam || '';
+        document.getElementById('game-image').value = game.image || '';
+        document.getElementById('game-description').value = game.description || '';
+        // mark form as editing
+        selectors.addGameForm.dataset.editId = gameId;
+        selectors.addModalTitle.textContent = 'Edit Game';
+        toggleModal(selectors.addModal, true);
       });
     });
   }
@@ -222,6 +247,31 @@ async function handleAddGame(event) {
   const image = document.getElementById('game-image').value.trim();
   const description = document.getElementById('game-description').value.trim();
 
+  const editId = selectors.addGameForm.dataset.editId;
+
+  if (editId) {
+    // update existing game
+    try {
+      await updateDoc(doc(db, 'games', editId), {
+        title,
+        download,
+        steam,
+        image,
+        description,
+        updatedAt: serverTimestamp(),
+      });
+      selectors.addGameForm.removeAttribute('data-edit-id');
+      selectors.addModalTitle.textContent = 'Add Game';
+      selectors.addGameForm.reset();
+      toggleModal(selectors.addModal, false);
+      loadGames();
+      return;
+    } catch (err) {
+      alert(`Update failed: ${err.message}`);
+      return;
+    }
+  }
+
   await addDoc(collection(db, 'games'), {
     title,
     download,
@@ -256,8 +306,18 @@ async function handleSendChat() {
 selectors.searchBtn.addEventListener('click', () => filterGames(selectors.searchInput.value));
 selectors.openLogin.addEventListener('click', () => toggleModal(selectors.loginModal, true));
 selectors.closeLogin.addEventListener('click', () => toggleModal(selectors.loginModal, false));
-selectors.openAddGame.addEventListener('click', () => toggleModal(selectors.addModal, true));
-selectors.closeAdd.addEventListener('click', () => toggleModal(selectors.addModal, false));
+selectors.openAddGame.addEventListener('click', () => {
+  delete selectors.addGameForm.dataset.editId;
+  selectors.addModalTitle.textContent = 'Add Game';
+  selectors.addGameForm.reset();
+  toggleModal(selectors.addModal, true);
+});
+selectors.closeAdd.addEventListener('click', () => {
+  delete selectors.addGameForm.dataset.editId;
+  selectors.addModalTitle.textContent = 'Add Game';
+  selectors.addGameForm.reset();
+  toggleModal(selectors.addModal, false);
+});
 selectors.loginForm.addEventListener('submit', handleLogin);
 selectors.googleLoginBtn.addEventListener('click', handleGoogleLogin);
 selectors.addGameForm.addEventListener('submit', handleAddGame);
