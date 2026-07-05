@@ -1,0 +1,114 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Free Game Links</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <header class="top-bar">
+        <div class="brand">Free Game Links</div>
+        <div class="nav-buttons">
+            <button class="nav-btn" data-target="games">Free Games</button>
+            <button class="nav-btn" data-target="community">Community</button>
+        </div>
+        <div class="account-row">
+            <span id="user-label" class="user-label">Guest</span>
+            <button id="open-login" class="small-btn">Login</button>
+            <button id="logout-btn" class="small-btn hidden">Logout</button>
+        </div>
+    </header>
+
+    <main>
+        <section id="games" class="section active-section">
+            <div class="section-header">
+                <div>
+                    <h1>Discover Games</h1>
+                    <p>Search, view Steam pages, and download your favourites.</p>
+                </div>
+                <button id="open-add-game" class="primary-btn hidden">Add Game</button>
+            </div>
+            <div class="search-row">
+                <input id="search" type="search" placeholder="Search a game by name...">
+                <button id="search-btn" class="primary-btn">Search</button>
+            </div>
+            <div id="game-list" class="game-list"></div>
+        </section>
+
+        <section id="community" class="section hidden">
+            <div class="section-header">
+                <div>
+                    <h1>Community Chat</h1>
+                    <p>Chat with users, share tips, and ask about games.</p>
+                </div>
+            </div>
+            <div id="chat-box" class="chat-box"></div>
+            <div class="chat-input-row">
+                <input id="chat-message" type="text" placeholder="Write a message...">
+                <button id="send-chat" class="primary-btn">Send</button>
+            </div>
+        </section>
+    </main>
+
+    <div id="login-modal" class="modal hidden">
+        <div class="modal-content">
+            <h2>Admin Login</h2>
+            <p class="login-note">Admin should sign in with email/password. Other users can login with Google or stay guest.</p>
+            <form id="login-form">
+                <label>
+                    Admin Email
+                    <input id="login-email" type="email" placeholder="admin@example.com" required>
+                </label>
+                <label>
+                    Password
+                    <input id="login-password" type="password" placeholder="Password" required>
+                </label>
+                <label class="checkbox-label">
+                    <input id="remember-me" type="checkbox">
+                    Remember me
+                </label>
+                <div class="modal-actions">
+                    <button type="submit" class="primary-btn">Login with Email</button>
+                    <button type="button" id="google-login" class="primary-btn">Login with Google</button>
+                    <button type="button" id="close-login" class="secondary-btn">Cancel</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <div id="add-modal" class="modal hidden">
+        <div class="modal-content">
+            <h2>Add Game</h2>
+            <form id="add-game-form">
+                <label>
+                    Game title
+                    <input id="game-title" type="text" placeholder="Game name" required>
+                </label>
+                <label>
+                    Download link
+                    <input id="game-download" type="url" placeholder="https://example.com/download" required>
+                </label>
+                <label>
+                    Steam link
+                    <input id="game-steam" type="url" placeholder="https://store.steampowered.com/app/..." required>
+                </label>
+                <label>
+                    Image URL
+                    <input id="game-image" type="url" placeholder="https://example.com/image.jpg" required>
+                </label>
+                <label>
+                    Description
+                    <textarea id="game-description" rows="3" placeholder="Brief description"></textarea>
+                </label>
+                <div class="modal-actions">
+                    <button type="button" id="close-add" class="secondary-btn">Close</button>
+                    <button type="submit" class="primary-btn">Add Game</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <script type="module" src="script.js"></script>
+</body>
+</html>
