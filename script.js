@@ -22,7 +22,14 @@ import {
   deleteDoc,
   updateDoc,
   doc,
+  increment,
+  setDoc,
+  getDoc,
 } from 'https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore.js';
+import {
+  getFunctions,
+  httpsCallable,
+} from 'https://www.gstatic.com/firebasejs/9.23.0/firebase-functions.js';
 
 const firebaseConfig = {
   apiKey: 'AIzaSyDvT3ZSvLkht8Ozd2xSV5An6LMDKKrMiGU',
@@ -45,6 +52,8 @@ const state = {
   userName: 'Guest',
   games: [],
   chatMessages: [],
+  visitCount: 0,
+  aiChatHistory: [],
 };
 
 const selectors = {
@@ -70,6 +79,10 @@ const selectors = {
   chatMessage: document.getElementById('chat-message'),
   sendChat: document.getElementById('send-chat'),
   navButtons: document.querySelectorAll('.nav-btn'),
+  visitCountValue: document.getElementById('visit-count-value'),
+  aiChatBox: document.getElementById('ai-chat-box'),
+  aiMessage: document.getElementById('ai-message'),
+  sendAiMessage: document.getElementById('send-ai-message'),
 };
 
 function renderGames(list) {
@@ -89,20 +102,57 @@ function renderGames(list) {
 
     const card = document.createElement('article');
     card.className = 'game-card';
+    const downloadCount = game.downloads || 0;
     card.innerHTML = `
       <img src="${game.image}" alt="${game.title}">
       <div class="card-body">
         <h3>${game.title}</h3>
         <p>${game.description || 'No description available.'}</p>
         <div class="card-actions">
-          <a class="primary-btn" href="${game.download}" target="_blank" rel="noreferrer">Download</a>
+          <a class="primary-btn download-btn" href="${game.download}" target="_blank" rel="noreferrer" data-id="${game.id}" data-url="${game.download}">Download</a>
           <a class="secondary-btn" href="${game.steam}" target="_blank" rel="noreferrer">View on Steam</a>
           ${editButton}
           ${deleteButton}
         </div>
+        <div class="download-meta">
+          <span class="download-count">${downloadCount} downloads</span>
+        </div>
       </div>
     `;
     selectors.gameList.appendChild(card);
+  });
+
+  selectors.gameList.querySelectorAll('.download-btn').forEach((link) => {
+    link.addEventListener('click', async (event) => {
+      event.preventDefault();
+      const gameId = link.dataset.id;
+      const url = link.dataset.url;
+      if (!gameId) {
+        if (url) window.open(url, '_blank', 'noopener,noreferrer');
+        return;
+      }
+
+      try {
+        await updateDoc(doc(db, 'games', gameId), {
+          downloads: increment(1),
+        });
+
+        const game = state.games.find((item) => item.id === gameId);
+        if (game) {
+          game.downloads = (game.downloads || 0) + 1;
+          const countEl = link.closest('.card-body')?.querySelector('.download-count');
+          if (countEl) {
+            countEl.textContent = `${game.downloads} downloads`;
+          }
+        }
+      } catch (error) {
+        console.error('Download counter update failed:', error);
+      }
+
+      if (url) {
+        window.open(url, '_blank', 'noopener,noreferrer');
+      }
+    });
   });
 
   if (state.isAdmin) {
@@ -164,6 +214,36 @@ function setUserLabel() {
 
 function toggleModal(modal, show) {
   modal.classList.toggle('hidden', !show);
+  if (show) {
+    // When showing modal, move focus to first input
+    setTimeout(() => {
+      const firstInput = modal.querySelector('input, button');
+      if (firstInput) firstInput.focus();
+    }, 0);
+  } else {
+    // When hiding modal, blur active element
+    if (document.activeElement instanceof HTMLElement) {
+      document.activeElement.blur();
+    }
+  }
+}
+
+function updateVisitCount(value) {
+  if (selectors.visitCountValue) {
+    selectors.visitCountValue.textContent = value;
+  }
+}
+
+async function recordVisit() {
+  try {
+    const statsRef = doc(db, 'stats', 'overview');
+    await setDoc(statsRef, { visits: increment(1) }, { merge: true });
+    const snapshot = await getDoc(statsRef);
+    state.visitCount = snapshot.exists() ? snapshot.data().visits || 0 : 0;
+    updateVisitCount(state.visitCount);
+  } catch (error) {
+    console.error('Visit counter update failed:', error);
+  }
 }
 
 function showSection(id) {
@@ -303,7 +383,122 @@ async function handleSendChat() {
   }
 }
 
+function renderAiChat() {
+  selectors.aiChatBox.innerHTML = '';
+  if (!state.aiChatHistory.length) {
+    const intro = document.createElement('div');
+    intro.className = 'ai-message assistant';
+    intro.textContent = "Hi! I'm your AI Game Advisor. Ask me about your gaming preferences, and I'll recommend games from our collection!";
+    selectors.aiChatBox.appendChild(intro);
+    return;
+  }
+  state.aiChatHistory.forEach((item) => {
+    const messageEl = document.createElement('div');
+    messageEl.className = `ai-message ${item.role}`;
+    messageEl.textContent = item.text;
+    selectors.aiChatBox.appendChild(messageEl);
+  });
+  selectors.aiChatBox.scrollTop = selectors.aiChatBox.scrollHeight;
+}
+
+async function handleAiMessage() {
+  const text = selectors.aiMessage.value.trim();
+  if (!text) return;
+
+  state.aiChatHistory.push({ role: 'user', text });
+  renderAiChat();
+  selectors.aiMessage.value = '';
+
+  try {
+    // Call Firebase Cloud Function for real AI response
+    const response = await firebase.functions().httpsCallable('getAiResponse')({
+      userMessage: text,
+      games: state.games,
+    });
+
+    const aiResponse = response.data.response || 'I couldn\'t generate a response. Try again!';
+    state.aiChatHistory.push({ role: 'assistant', text: aiResponse });
+    renderAiChat();
+  } catch (error) {
+    console.error('AI response error:', error);
+    state.aiChatHistory.push({
+      role: 'assistant',
+      text: 'Sorry, I encountered an error. Please try again later.',
+    });
+    renderAiChat();
+  }
+}
+
+function generateAiRecommendation(userMessage, gamesList) {
+  const message = userMessage.toLowerCase();
+  
+  if (!state.games.length) {
+    return 'No games available yet. Check back soon!';
+  }
+
+  // Action/Combat games
+  if (message.includes('action') || message.includes('fight') || message.includes('combat') || message.includes('shooter')) {
+    const actionGames = state.games.filter(g => g.description.toLowerCase().includes('action') || g.description.toLowerCase().includes('combat'));
+    if (actionGames.length) {
+      return `I recommend: ${actionGames[0].title}. ${actionGames[0].description || 'A great action game!'}`;
+    }
+  }
+
+  // Puzzle games
+  if (message.includes('puzzle') || message.includes('brain') || message.includes('logic') || message.includes('strategy')) {
+    const puzzleGames = state.games.filter(g => g.description.toLowerCase().includes('puzzle') || g.description.toLowerCase().includes('strategy'));
+    if (puzzleGames.length) {
+      return `I recommend: ${puzzleGames[0].title}. ${puzzleGames[0].description || 'Perfect for puzzle lovers!'}`;
+    }
+  }
+
+  // Adventure/RPG games
+  if (message.includes('adventure') || message.includes('explore') || message.includes('story') || message.includes('rpg')) {
+    const adventureGames = state.games.filter(g => g.description.toLowerCase().includes('adventure') || g.description.toLowerCase().includes('story'));
+    if (adventureGames.length) {
+      return `I recommend: ${adventureGames[0].title}. ${adventureGames[0].description || 'Great for adventure lovers!'}`;
+    }
+  }
+
+  // Free games
+  if (message.includes('free') || message.includes('cost') || message.includes('price')) {
+    const freeGames = state.games.slice(0, 2);
+    return `All our games are free! Try ${freeGames[0].title} or ${freeGames[1]?.title || 'another from our collection'}!`;
+  }
+
+  // Popular/Best
+  if (message.includes('popular') || message.includes('best') || message.includes('top') || message.includes('recommend')) {
+    const topGames = state.games.slice(0, 2);
+    return `Our popular games: ${topGames[0].title} and ${topGames[1]?.title || 'more coming soon'}. Both are excellent choices!`;
+  }
+
+  // Download count recommendation
+  if (message.includes('download') || message.includes('most played')) {
+    const mostDownloaded = state.games.reduce((prev, current) => 
+      (prev.downloads || 0) > (current.downloads || 0) ? prev : current
+    );
+    return `${mostDownloaded.title} is our most downloaded game with ${mostDownloaded.downloads || 0} downloads. Great choice!`;
+  }
+
+  // Generic fallback with better variety
+  const randomGame = state.games[Math.floor(Math.random() * state.games.length)];
+  const suggestions = [
+    `Try ${randomGame.title}! It's a great game to start with.`,
+    `Have you considered ${randomGame.title}? Many players love it!`,
+    `${randomGame.title} is worth checking out based on our collection.`,
+    `I think you'd enjoy ${randomGame.title}. Want to know more?`,
+  ];
+  
+  return suggestions[Math.floor(Math.random() * suggestions.length)];
+}
+
 selectors.searchBtn.addEventListener('click', () => filterGames(selectors.searchInput.value));
+selectors.searchInput.addEventListener('keydown', (event) => {
+  if (event.key === 'Enter') {
+    event.preventDefault();
+    filterGames(selectors.searchInput.value);
+  }
+});
 selectors.openLogin.addEventListener('click', () => toggleModal(selectors.loginModal, true));
 selectors.closeLogin.addEventListener('click', () => toggleModal(selectors.loginModal, false));
 selectors.openAddGame.addEventListener('click', () => {
@@ -322,6 +517,10 @@ selectors.loginForm.addEventListener('submit', handleLogin);
 selectors.googleLoginBtn.addEventListener('click', handleGoogleLogin);
 selectors.addGameForm.addEventListener('submit', handleAddGame);
 selectors.sendChat.addEventListener('click', handleSendChat);
+selectors.sendAiMessage.addEventListener('click', handleAiMessage);
+selectors.aiMessage.addEventListener('keydown', (event) => {
+  if (event.key === 'Enter') handleAiMessage();
+});
 selectors.logoutBtn.addEventListener('click', handleLogout);
 selectors.chatMessage.addEventListener('keydown', (event) => {
   if (event.key === 'Enter') handleSendChat();
@@ -343,7 +542,9 @@ onAuthStateChanged(auth, (user) => {
   renderGames(state.games);
 });
 
+recordVisit();
 loadGames();
 loadChat();
 filterGames('');
 renderChat([]);
+renderAiChat();
