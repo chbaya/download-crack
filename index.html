@@ -8,15 +8,19 @@
 </head>
 <body>
     <header class="top-bar">
-        <div class="brand">Free Game Links</div>
+        <div class="brand">Night Games Club</div>
         <div class="nav-buttons">
             <button class="nav-btn" data-target="games">Free Games</button>
             <button class="nav-btn" data-target="community">Community</button>
+            <button class="nav-btn" data-target="ai-helper">AI Helper</button>
         </div>
-        <div class="account-row">
-            <span id="user-label" class="user-label">Guest</span>
-            <button id="open-login" class="small-btn">Login</button>
-            <button id="logout-btn" class="small-btn hidden">Logout</button>
+        <div class="header-meta">
+            <div id="visit-count" class="visit-badge">Visits: <span id="visit-count-value">0</span></div>
+            <div class="account-row">
+                <span id="user-label" class="user-label">Guest</span>
+                <button id="open-login" class="small-btn">Login</button>
+                <button id="logout-btn" class="small-btn hidden">Logout</button>
+            </div>
         </div>
     </header>
 
@@ -47,6 +51,20 @@
             <div class="chat-input-row">
                 <input id="chat-message" type="text" placeholder="Write a message...">
                 <button id="send-chat" class="primary-btn">Send</button>
+            </div>
+        </section>
+
+        <section id="ai-helper" class="section hidden">
+            <div class="section-header">
+                <div>
+                    <h1>AI Game Advisor</h1>
+                    <p>Get personalized game recommendations based on your preferences.</p>
+                </div>
+            </div>
+            <div id="ai-chat-box" class="chat-box ai-chat-box"></div>
+            <div class="chat-input-row">
+                <input id="ai-message" type="text" placeholder="Ask me about games...">
+                <button id="send-ai-message" class="primary-btn">Ask</button>
             </div>
         </section>
     </main>
